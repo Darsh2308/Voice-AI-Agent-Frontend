@@ -1,0 +1,196 @@
+import { useState, useRef, useCallback, useEffect } from 'react';
+
+export type Message = {
+  speaker: 'user' | 'ai' | 'system';
+  text: string;
+};
+
+export type Status = 'idle' | 'listening' | 'thinking' | 'speaking';
+
+export const useWebSocket = () => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [status, setStatus] = useState<Status>('idle');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [micVolume, setMicVolume] = useState(0);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopCurrentAudio = useCallback(() => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current.src = '';
+      currentAudioRef.current = null;
+    }
+  }, []);
+
+  const playAudioData = useCallback(
+    (data: ArrayBuffer) => {
+      stopCurrentAudio();
+      const blob = new Blob([data], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudioRef.current = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        currentAudioRef.current = null;
+        setStatus('listening');
+      };
+      audio.play().catch(console.error);
+    },
+    [stopCurrentAudio]
+  );
+
+  const startMicrophone = useCallback(async (audioContext: AudioContext) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+
+      mediaStreamRef.current = stream;
+      const source = audioContext.createMediaStreamSource(stream);
+
+      analyserRef.current = audioContext.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      source.connect(analyserRef.current);
+
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      processor.onaudioprocess = (event) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          const input = event.inputBuffer.getChannelData(0);
+          const buffer = new ArrayBuffer(input.length * 2);
+          const view = new DataView(buffer);
+          for (let i = 0; i < input.length; i++) {
+            const s = Math.max(-1, Math.min(1, input[i]));
+            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+          }
+          wsRef.current.send(buffer);
+        }
+      };
+
+      const updateVolume = () => {
+        if (!analyserRef.current) return;
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        setMicVolume(avg / 255);
+        animationFrameRef.current = requestAnimationFrame(updateVolume);
+      };
+      updateVolume();
+    } catch (error) {
+      console.error('Error starting microphone:', error);
+    }
+  }, []);
+
+  const stopMicrophone = useCallback(() => {
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setMicVolume(0);
+  }, []);
+
+  const connect = useCallback(async () => {
+    const audioContext = new AudioContext();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    audioContextRef.current = audioContext;
+
+    const ws = new WebSocket(import.meta.env.VITE_WS_URL);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'init', sampleRate: audioContext.sampleRate }));
+      setIsConnected(true);
+      setStatus('listening');
+      startMicrophone(audioContext);
+    };
+
+    ws.onmessage = (event) => {
+      // Binary = AI audio WAV bytes
+      if (event.data instanceof ArrayBuffer) {
+        setStatus('speaking');
+        playAudioData(event.data);
+        return;
+      }
+
+      if (typeof event.data === 'string') {
+        // Plain-text transcripts
+        if (event.data.startsWith('User: ')) {
+          setMessages((prev) => [...prev, { speaker: 'user', text: event.data.slice(6) }]);
+          setStatus('thinking');
+          return;
+        }
+        if (event.data.startsWith('AI: ')) {
+          setMessages((prev) => [...prev, { speaker: 'ai', text: event.data.slice(4) }]);
+          return;
+        }
+
+        // JSON control messages
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'status') {
+            setStatus(data.ai_speaking ? 'speaking' : 'listening');
+          } else if (data.type === 'interrupted') {
+            stopCurrentAudio();
+            setMessages((prev) => [...prev, { speaker: 'system', text: 'Interrupted' }]);
+            setStatus('listening');
+          }
+        } catch {
+          // ignore unrecognised messages
+        }
+      }
+    };
+
+    ws.onerror = (error) => console.error('WebSocket error:', error);
+
+    ws.onclose = () => {
+      setIsConnected(false);
+      setStatus('idle');
+      stopMicrophone();
+      stopCurrentAudio();
+    };
+
+    wsRef.current = ws;
+  }, [startMicrophone, stopMicrophone, playAudioData, stopCurrentAudio]);
+
+  const disconnect = useCallback(() => {
+    wsRef.current?.close();
+    wsRef.current = null;
+    stopMicrophone();
+    stopCurrentAudio();
+    setStatus('idle');
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+  }, [stopMicrophone, stopCurrentAudio]);
+
+  const interrupt = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'interrupt' }));
+    }
+    stopCurrentAudio();
+    setStatus('listening');
+  }, [stopCurrentAudio]);
+
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
+
+  return { isConnected, status, messages, micVolume, connect, disconnect, interrupt };
+};
