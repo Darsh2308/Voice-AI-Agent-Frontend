@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/patil/OneDrive/Desktop/Voice-frontend-main -not -path */node_modules/* -not -path */.git/* -not -path */.bolt/*)"
+    ]
+  }
+}
