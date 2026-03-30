@@ -4,6 +4,7 @@ import { Status } from '../hooks/useWebSocket';
 type ControlsProps = {
   isConnected: boolean;
   status: Status;
+  micVolume: number;
   onConnect: () => void;
   onDisconnect: () => void;
   onInterrupt: () => void;
@@ -23,11 +24,16 @@ const STATUS_STYLES: Record<Status, { color: string; glow: string }> = {
   speaking: { color: '#FF6B00', glow: 'rgba(255, 107, 0, 0.4)' },
 };
 
-const WAVE_DELAYS = [0.1, 0.3, 0, 0.2, 0.4];
+// Per-bar multipliers — bell-curve shape so centre bars are tallest
+const BAR_MULTIPLIERS = [0.3, 0.45, 0.6, 0.75, 0.88, 1.0, 0.95, 1.0, 0.88, 0.75, 0.6, 0.45, 0.3];
+const MAX_BAR_HEIGHT = 56; // px — matches the h-14 container
+const SILENCE_HEIGHT = 3;  // px — flat line when not speaking
+const SPEAK_THRESHOLD = 0.015;
 
 export function Controls({
   isConnected,
   status,
+  micVolume,
   onConnect,
   onDisconnect,
   onInterrupt,
@@ -52,21 +58,30 @@ export function Controls({
         )}
       </div>
 
-      {/* ── Sound wave bars (listening state) ── */}
-      <div className="flex gap-1.5 items-end h-6 transition-opacity duration-300"
-        style={{ opacity: status === 'listening' ? 1 : 0 }}>
-        {WAVE_DELAYS.map((delay, i) => (
-          <div
-            key={i}
-            className="w-1.5 rounded-full"
-            style={{
-              background: `linear-gradient(to top, #7C3AED, #C084FC)`,
-              animation: 'soundWave 0.7s ease-in-out infinite',
-              animationDelay: `${delay}s`,
-              height: '100%',
-            }}
-          />
-        ))}
+      {/* ── Sound wave bars — purely reactive to mic, no animation fallback ── */}
+      <div
+        className="flex gap-1 items-end transition-opacity duration-300"
+        style={{ opacity: status === 'listening' ? 1 : 0, height: `${MAX_BAR_HEIGHT}px` }}
+      >
+        {BAR_MULTIPLIERS.map((multiplier, i) => {
+          const isSpeaking = status === 'listening' && micVolume > SPEAK_THRESHOLD;
+          const barHeight = isSpeaking
+            ? Math.min(MAX_BAR_HEIGHT, Math.max(SILENCE_HEIGHT + 4, micVolume * MAX_BAR_HEIGHT * multiplier * 5))
+            : SILENCE_HEIGHT;
+          return (
+            <div
+              key={i}
+              className="w-2 rounded-full"
+              style={{
+                background: isSpeaking
+                  ? `linear-gradient(to top, #7C3AED, #C084FC)`
+                  : 'rgba(168, 85, 247, 0.25)',
+                height: `${barHeight}px`,
+                transition: 'height 80ms ease-out, background 200ms ease',
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* ── Button row ── */}

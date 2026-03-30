@@ -20,10 +20,6 @@ export const useWebSocket = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  // Buffer AI text until the matching user transcription arrives, so messages
-  // always appear in the correct order: user → AI.
-  const pendingAiTextRef = useRef<string | null>(null);
-
   const stopCurrentAudio = useCallback(() => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
@@ -124,12 +120,6 @@ export const useWebSocket = () => {
     ws.onmessage = (event) => {
       // Binary = AI audio WAV bytes
       if (event.data instanceof ArrayBuffer) {
-        // Flush any buffered AI text that never got a matching User: transcript
-        if (pendingAiTextRef.current) {
-          const text = pendingAiTextRef.current;
-          pendingAiTextRef.current = null;
-          setMessages((prev) => [...prev, { speaker: 'ai', text }]);
-        }
         setStatus('speaking');
         playAudioData(event.data);
         return;
@@ -139,20 +129,14 @@ export const useWebSocket = () => {
         // Plain-text transcripts
         if (event.data.startsWith('User: ')) {
           const userText = event.data.slice(6);
-          const bufferedAi = pendingAiTextRef.current;
-          pendingAiTextRef.current = null;
-          // Always insert user message first, then the buffered AI reply
-          setMessages((prev) => {
-            const next: Message[] = [...prev, { speaker: 'user', text: userText }];
-            if (bufferedAi) next.push({ speaker: 'ai', text: bufferedAi });
-            return next;
-          });
+          setMessages((prev) => [...prev, { speaker: 'user', text: userText }]);
           setStatus('thinking');
           return;
         }
         if (event.data.startsWith('AI: ')) {
-          // Hold the AI text; it will be appended after the user transcript arrives
-          pendingAiTextRef.current = event.data.slice(4);
+          // Show AI text immediately — audio may arrive before or after the text,
+          // so buffering causes it to never display when audio wins the race.
+          setMessages((prev) => [...prev, { speaker: 'ai', text: event.data.slice(4) }]);
           return;
         }
 

@@ -114,7 +114,7 @@ function App() {
 
         {/* ── Left panel: Chat ─────────────────────────────────────────────── */}
         <div className="glass-panel w-1/2 flex flex-col overflow-hidden rounded-2xl">
-          <ChatPanel messages={messages} />
+          <ChatPanel messages={messages} status={status} />
         </div>
 
         {/* ── Right panel: Sphere + Controls ───────────────────────────────── */}
@@ -140,6 +140,7 @@ function App() {
             <Controls
               isConnected={isConnected}
               status={status}
+              micVolume={micVolume}
               onConnect={connect}
               onDisconnect={disconnect}
               onInterrupt={interrupt}

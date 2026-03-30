@@ -4,9 +4,10 @@ import { Message } from '../hooks/useWebSocket';
 
 type ChatPanelProps = {
   messages: Message[];
+  status: 'idle' | 'listening' | 'thinking' | 'speaking';
 };
 
-export function ChatPanel({ messages }: ChatPanelProps) {
+export function ChatPanel({ messages, status }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +152,39 @@ export function ChatPanel({ messages }: ChatPanelProps) {
               )}
             </div>
           ))
+        )}
+        {/* ── Typing indicator ── */}
+        {status === 'thinking' && (
+          <div className="animate-slide-up" style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div
+              className="rounded-2xl px-4 py-3"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59, 7, 100, 0.75) 0%, rgba(109, 40, 217, 0.55) 100%)',
+                border: '1px solid rgba(124, 58, 237, 0.32)',
+                boxShadow: '0 4px 20px rgba(124, 58, 237, 0.18)',
+              }}
+            >
+              <div
+                className="text-xs font-bold tracking-[0.2em] uppercase mb-2 opacity-75"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                AI
+              </div>
+              <div className="flex gap-1.5 items-center h-4">
+                {[0, 0.18, 0.36].map((delay, i) => (
+                  <div
+                    key={i}
+                    className="w-2 h-2 rounded-full"
+                    style={{
+                      background: '#A855F7',
+                      animation: 'typingDot 1.2s ease-in-out infinite',
+                      animationDelay: `${delay}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>

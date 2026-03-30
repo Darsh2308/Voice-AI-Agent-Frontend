@@ -94,12 +94,7 @@ User Speaks
 
 ### Message Ordering Logic
 
-The hook ensures messages always appear in the correct order (User → AI) by buffering the AI text response until the matching user transcript arrives:
-
-```
-AI text received   →  stored in pendingAiTextRef
-User text received →  append User message, then flush pending AI message
-```
+Messages are displayed in the order they arrive from the server. The server sends `User:` transcripts before `AI:` responses (STT completes before LLM replies), so no client-side buffering is needed. AI text is rendered immediately on receipt.
 
 ### Reconnection Strategy
 
@@ -222,7 +217,7 @@ Click the large **microphone button** in the center-right panel.
 
 Speak naturally at a normal pace — no push-to-talk needed, the session is always-on.
 
-- The **sound wave animation** below the sphere confirms your mic is active
+- The **13 waveform bars** below the sphere react in real-time to your voice — they are flat when silent and grow tall as you speak
 - The **mini wave bars** in the navbar show your real-time mic volume
 - When you finish speaking, pause briefly so the backend can detect end-of-speech
 
@@ -232,12 +227,13 @@ After you stop speaking:
 
 - Status changes to **Thinking** — the sphere rotates faster with a wobbling motion
 - Your transcript appears in the chat panel on the left
+- An **animated typing indicator** (three bouncing dots) appears in the chat panel while the AI is processing
 
 #### 4. Hear and Read the Response
 
 - Status changes to **Speaking** — the sphere enters a rhythmic multi-frequency animation
 - The AI's voice plays through your speakers automatically
-- The AI's response text appears in the chat panel simultaneously
+- The typing indicator disappears and the AI's response text appears in the chat panel
 
 #### 5. Interrupt the AI
 
@@ -353,6 +349,7 @@ The client sends the device's native sample rate in the `init` message. The back
 |---|---|---|
 | Orange | Right | Your spoken words (user transcript) |
 | Purple | Left | AI response text |
+| Purple (animated dots) | Left | Typing indicator — AI is processing (shown during `thinking` state) |
 | Gray | Center | System events (e.g., "Interrupted") |
 
 ---
@@ -376,11 +373,11 @@ const {
 
 ### `ChatPanel` ([src/components/ChatPanel.tsx](src/components/ChatPanel.tsx))
 
-Renders the conversation transcript. Auto-scrolls to the latest message.
+Renders the conversation transcript. Auto-scrolls to the latest message. Accepts a `status` prop — when `status === 'thinking'`, displays an animated three-dot typing indicator in an AI bubble until the response arrives.
 
 ### `Controls` ([src/components/Controls.tsx](src/components/Controls.tsx))
 
-Renders the mic button, interrupt button (Zap icon), status label, and sound wave animation.
+Renders the mic button, interrupt button (Zap icon), status label, and a 13-bar waveform visualizer. The bars are purely reactive to `micVolume` — flat (3 px, dimmed) when silent, and grow to full height in a bell-curve shape when you speak. No CSS animation fallback; the waveform only activates during the `listening` state.
 
 ### `Sphere` ([src/components/Sphere.tsx](src/components/Sphere.tsx))
 
@@ -404,4 +401,4 @@ Full 3D canvas built with React Three Fiber. Contains:
 | AudioWorklet failed | `audio-processor.js` missing | Ensure `public/audio-processor.js` exists and the dev server is running |
 | Choppy AI audio | Poor network connection | Check internet stability; prefer a wired connection |
 | App not working on iOS Safari | Limited AudioWorklet support | Use Chrome on desktop for full functionality |
-| Messages appear out of order | Backend sequencing issue | The frontend buffers AI text until the user transcript arrives; check backend message ordering if this persists |
+| Messages appear out of order | Backend sending AI text before User transcript | The frontend renders messages in arrival order; ensure the backend sends `User:` before `AI:` for each turn |
