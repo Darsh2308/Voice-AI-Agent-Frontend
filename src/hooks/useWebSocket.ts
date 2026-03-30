@@ -7,26 +7,19 @@ export type Message = {
 
 export type Status = 'idle' | 'listening' | 'thinking' | 'speaking';
 
-const MAX_RETRIES = 5;
-const BASE_RETRY_DELAY_MS = 1000;
-
 export const useWebSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState<Status>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
   const [micVolume, setMicVolume] = useState(0);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<AudioWorkletNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const retryCountRef = useRef(0);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shouldReconnectRef = useRef(false);
   // Buffer AI text until the matching user transcription arrives, so messages
   // always appear in the correct order: user → AI.
   const pendingAiTextRef = useRef<string | null>(null);
@@ -69,15 +62,14 @@ export const useWebSocket = () => {
       analyserRef.current.fftSize = 256;
       source.connect(analyserRef.current);
 
-      await audioContext.audioWorklet.addModule('/audio-processor.js');
-      const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-      processorRef.current = workletNode;
-      source.connect(workletNode);
-      workletNode.connect(audioContext.destination);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      source.connect(processor);
+      processor.connect(audioContext.destination);
 
-      workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+      processor.onaudioprocess = (event) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-          const input = event.data;
+          const input = event.inputBuffer.getChannelData(0);
           const buffer = new ArrayBuffer(input.length * 2);
           const view = new DataView(buffer);
           for (let i = 0; i < input.length; i++) {
@@ -114,19 +106,15 @@ export const useWebSocket = () => {
     setMicVolume(0);
   }, []);
 
-  const connectWs = useCallback(async (audioContext: AudioContext) => {
-    const url = import.meta.env.VITE_WS_URL;
-    if (!url) {
-      setConnectionError('VITE_WS_URL is not configured.');
-      return;
-    }
+  const connect = useCallback(async () => {
+    const audioContext = new AudioContext();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    audioContextRef.current = audioContext;
 
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(import.meta.env.VITE_WS_URL);
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
-      retryCountRef.current = 0;
-      setConnectionError(null);
       ws.send(JSON.stringify({ type: 'init', sampleRate: audioContext.sampleRate }));
       setIsConnected(true);
       setStatus('listening');
@@ -191,46 +179,17 @@ export const useWebSocket = () => {
       setStatus('idle');
       stopMicrophone();
       stopCurrentAudio();
-
-      if (shouldReconnectRef.current && retryCountRef.current < MAX_RETRIES) {
-        const delay = BASE_RETRY_DELAY_MS * Math.pow(2, retryCountRef.current);
-        retryCountRef.current += 1;
-        setConnectionError(`Connection lost. Retrying in ${delay / 1000}s… (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
-        retryTimeoutRef.current = setTimeout(() => {
-          connectWs(audioContext);
-        }, delay);
-      } else if (shouldReconnectRef.current) {
-        setConnectionError('Could not connect to the server. Please try again.');
-        shouldReconnectRef.current = false;
-      }
     };
 
     wsRef.current = ws;
   }, [startMicrophone, stopMicrophone, playAudioData, stopCurrentAudio]);
 
-  const connect = useCallback(async () => {
-    const audioContext = new AudioContext();
-    if (audioContext.state === 'suspended') await audioContext.resume();
-    audioContextRef.current = audioContext;
-
-    retryCountRef.current = 0;
-    shouldReconnectRef.current = true;
-    setConnectionError(null);
-    connectWs(audioContext);
-  }, [connectWs]);
-
   const disconnect = useCallback(() => {
-    shouldReconnectRef.current = false;
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
     wsRef.current?.close();
     wsRef.current = null;
     stopMicrophone();
     stopCurrentAudio();
     setStatus('idle');
-    setConnectionError(null);
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
@@ -251,5 +210,5 @@ export const useWebSocket = () => {
     };
   }, [disconnect]);
 
-  return { isConnected, status, messages, micVolume, connectionError, connect, disconnect, interrupt };
+  return { isConnected, status, messages, micVolume, connect, disconnect, interrupt };
 };

@@ -7,7 +7,7 @@ import { Radio } from 'lucide-react';
 const NAV_WAVE_DELAYS = [0, 0.15, 0.05, 0.2, 0.1];
 
 function App() {
-  const { isConnected, status, messages, micVolume, connectionError, connect, disconnect, interrupt } =
+  const { isConnected, status, messages, micVolume, connect, disconnect, interrupt } =
     useWebSocket();
 
   const sphereGlow =
@@ -108,21 +108,6 @@ function App() {
           </span>
         </div>
       </nav>
-
-      {/* ══ Connection error banner ═══════════════════════════════════════════ */}
-      {connectionError && (
-        <div
-          className="flex-shrink-0 flex items-center gap-2 px-6 py-2 text-xs font-medium"
-          style={{
-            background: 'rgba(220, 38, 38, 0.12)',
-            borderBottom: '1px solid rgba(220, 38, 38, 0.25)',
-            color: '#FCA5A5',
-          }}
-        >
-          <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
-          {connectionError}
-        </div>
-      )}
 
       {/* ══ Split layout ══════════════════════════════════════════════════════ */}
       <div className="flex-1 flex overflow-hidden p-3 gap-3">
