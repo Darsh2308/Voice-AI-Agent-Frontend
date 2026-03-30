@@ -1,14 +1,21 @@
+import { useState } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Sphere } from './components/Sphere';
 import { ChatPanel } from './components/ChatPanel';
 import { Controls } from './components/Controls';
+import { LoginPage } from './components/LoginPage';
 import { Radio } from 'lucide-react';
 
 const NAV_WAVE_DELAYS = [0, 0.15, 0.05, 0.2, 0.1];
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(false);
   const { isConnected, status, messages, micVolume, connect, disconnect, interrupt } =
     useWebSocket();
+
+  if (!authenticated) {
+    return <LoginPage onLogin={() => setAuthenticated(true)} />;
+  }
 
   const sphereGlow =
     status === 'speaking'
