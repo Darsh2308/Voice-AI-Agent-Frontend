@@ -20,7 +20,12 @@ export const useWebSocket = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingRef = useRef(false);
+
   const stopCurrentAudio = useCallback(() => {
+    audioQueueRef.current = [];
+    isPlayingRef.current = false;
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current.src = '';
@@ -28,21 +33,34 @@ export const useWebSocket = () => {
     }
   }, []);
 
-  const playAudioData = useCallback(
+  const drainAudioQueue = useCallback(() => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingRef.current = false;
+      currentAudioRef.current = null;
+      setStatus('listening');
+      return;
+    }
+    const data = audioQueueRef.current.shift()!;
+    const blob = new Blob([data], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudioRef.current = audio;
+    isPlayingRef.current = true;
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      drainAudioQueue();
+    };
+    audio.play().catch(console.error);
+  }, []);
+
+  const enqueueAudio = useCallback(
     (data: ArrayBuffer) => {
-      stopCurrentAudio();
-      const blob = new Blob([data], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      currentAudioRef.current = audio;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        currentAudioRef.current = null;
-        setStatus('listening');
-      };
-      audio.play().catch(console.error);
+      audioQueueRef.current.push(data);
+      if (!isPlayingRef.current) {
+        drainAudioQueue();
+      }
     },
-    [stopCurrentAudio]
+    [drainAudioQueue]
   );
 
   const startMicrophone = useCallback(async (audioContext: AudioContext) => {
@@ -121,7 +139,7 @@ export const useWebSocket = () => {
       // Binary = AI audio WAV bytes
       if (event.data instanceof ArrayBuffer) {
         setStatus('speaking');
-        playAudioData(event.data);
+        enqueueAudio(event.data);
         return;
       }
 
@@ -166,7 +184,7 @@ export const useWebSocket = () => {
     };
 
     wsRef.current = ws;
-  }, [startMicrophone, stopMicrophone, playAudioData, stopCurrentAudio]);
+  }, [startMicrophone, stopMicrophone, enqueueAudio, stopCurrentAudio]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();
