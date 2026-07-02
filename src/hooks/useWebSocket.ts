@@ -22,6 +22,13 @@ export const useWebSocket = () => {
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
   const isPlayingRef = useRef(false);
+  // Audio gate: after a barge-in/interrupt we flush the queue, but the server
+  // may still have in-flight WAV chunks from the CANCELLED turn arriving over
+  // the socket a moment later. Without a gate those late chunks get re-enqueued
+  // and the old reply "resumes" after the new one. While the gate is closed we
+  // DROP incoming audio; it reopens when a genuinely new turn begins (the server
+  // sends {"type":"thinking","active":true} at the start of every turn).
+  const acceptAudioRef = useRef(true);
 
   const stopCurrentAudio = useCallback(() => {
     audioQueueRef.current = [];
@@ -138,6 +145,9 @@ export const useWebSocket = () => {
     ws.onmessage = (event) => {
       // Binary = AI audio WAV bytes
       if (event.data instanceof ArrayBuffer) {
+        // Drop audio from a turn that was just barged-in/interrupted — its
+        // late-arriving chunks must not be queued (they'd resume the old reply).
+        if (!acceptAudioRef.current) return;
         setStatus('speaking');
         enqueueAudio(event.data);
         return;
@@ -161,11 +171,21 @@ export const useWebSocket = () => {
         // JSON control messages
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'status') {
+          if (data.type === 'thinking') {
+            setStatus(data.active ? 'thinking' : 'listening');
+            // A new turn is starting → reopen the audio gate so its chunks play.
+            if (data.active) acceptAudioRef.current = true;
+          } else if (data.type === 'status') {
             setStatus(data.ai_speaking ? 'speaking' : 'listening');
-          } else if (data.type === 'interrupted') {
+          } else if (data.type === 'interrupted' || data.type === 'barge_in') {
+            // Both mean "stop talking NOW". `interrupted` = user hit stop;
+            // `barge_in` = the server's VAD detected the user speaking over the
+            // AI. Flush what's queued AND close the audio gate: the cancelled
+            // turn may still have WAV chunks in transit that arrive after this,
+            // and without the gate they'd be re-enqueued and resume the old
+            // reply. The gate reopens on the next {"type":"thinking",active:true}.
+            acceptAudioRef.current = false;
             stopCurrentAudio();
-            setMessages((prev) => [...prev, { speaker: 'system', text: 'Interrupted' }]);
             setStatus('listening');
           }
         } catch {

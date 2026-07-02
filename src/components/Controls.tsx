@@ -1,4 +1,5 @@
-import { Mic, MicOff, Zap } from 'lucide-react';
+import { useState } from 'react';
+import { Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Status } from '../hooks/useWebSocket';
 
 type ControlsProps = {
@@ -8,137 +9,94 @@ type ControlsProps = {
   onConnect: () => void;
   onDisconnect: () => void;
   onInterrupt: () => void;
+  compact?: boolean;
 };
 
 const STATUS_LABELS: Record<Status, string> = {
   idle: 'Ready',
-  listening: 'Listening',
-  thinking: 'Processing',
-  speaking: 'Speaking',
+  listening: 'Listening…',
+  thinking: 'Processing…',
+  speaking: 'Suhaas is speaking…',
 };
 
-const STATUS_STYLES: Record<Status, { color: string; glow: string }> = {
-  idle: { color: '#A855F7', glow: 'rgba(168, 85, 247, 0.4)' },
-  listening: { color: '#C084FC', glow: 'rgba(192, 132, 252, 0.4)' },
-  thinking: { color: '#FFB800', glow: 'rgba(255, 184, 0, 0.4)' },
-  speaking: { color: '#FF6B00', glow: 'rgba(255, 107, 0, 0.4)' },
+const STATUS_COLORS: Record<Status, string> = {
+  idle: 'var(--bc-teal)',
+  listening: '#14B8A6',
+  thinking: 'var(--bc-amber)',
+  speaking: 'var(--bc-teal)',
 };
-
-// Per-bar multipliers — bell-curve shape so centre bars are tallest
-const BAR_MULTIPLIERS = [0.3, 0.45, 0.6, 0.75, 0.88, 1.0, 0.95, 1.0, 0.88, 0.75, 0.6, 0.45, 0.3];
-const MAX_BAR_HEIGHT = 56; // px — matches the h-14 container
-const SILENCE_HEIGHT = 3;  // px — flat line when not speaking
-const SPEAK_THRESHOLD = 0.015;
 
 export function Controls({
   isConnected,
   status,
-  micVolume,
-  onConnect,
   onDisconnect,
   onInterrupt,
+  compact = false,
 }: ControlsProps) {
-  const { color } = STATUS_STYLES[status];
+  const [muted, setMuted] = useState(false);
+
+  if (!compact) return null; // Only used in widget now
 
   return (
-    <div className="flex flex-col items-center gap-4 py-7">
-      {/* ── Status label ── */}
-      <div className="flex items-center gap-2 h-5">
+    <div className="flex flex-col items-center gap-3 py-4 px-5">
+      {/* ── Status ── */}
+      <div className="flex items-center gap-2">
         <span
-          className="text-xs font-bold tracking-[0.3em] uppercase transition-colors duration-700"
-          style={{ color, fontFamily: "'Space Grotesk', sans-serif" }}
+          className="w-2 h-2 rounded-full animate-pulse"
+          style={{ background: STATUS_COLORS[status] }}
+        />
+        <span
+          className="text-xs font-semibold"
+          style={{ color: STATUS_COLORS[status], fontFamily: "'Plus Jakarta Sans', sans-serif" }}
         >
           {STATUS_LABELS[status]}
         </span>
-        {isConnected && (
-          <span
-            className="w-1.5 h-1.5 rounded-full animate-pulse"
-            style={{ background: color }}
-          />
-        )}
       </div>
 
-      {/* ── Sound wave bars — purely reactive to mic, no animation fallback ── */}
-      <div
-        className="flex gap-1 items-end transition-opacity duration-300"
-        style={{ opacity: status === 'listening' ? 1 : 0, height: `${MAX_BAR_HEIGHT}px` }}
-      >
-        {BAR_MULTIPLIERS.map((multiplier, i) => {
-          const isSpeaking = status === 'listening' && micVolume > SPEAK_THRESHOLD;
-          const barHeight = isSpeaking
-            ? Math.min(MAX_BAR_HEIGHT, Math.max(SILENCE_HEIGHT + 4, micVolume * MAX_BAR_HEIGHT * multiplier * 5))
-            : SILENCE_HEIGHT;
-          return (
-            <div
-              key={i}
-              className="w-2 rounded-full"
-              style={{
-                background: isSpeaking
-                  ? `linear-gradient(to top, #7C3AED, #C084FC)`
-                  : 'rgba(168, 85, 247, 0.25)',
-                height: `${barHeight}px`,
-                transition: 'height 80ms ease-out, background 200ms ease',
-              }}
-            />
-          );
-        })}
-      </div>
+      {/* ── Call timer / connected indicator ── */}
+      {isConnected && (
+        <p className="text-xs" style={{ color: 'var(--bc-ink)', opacity: 0.35 }}>
+          Call in progress
+        </p>
+      )}
 
       {/* ── Button row ── */}
-      <div className="flex items-center gap-5">
-        {/* Interrupt button */}
-        {isConnected && (
-          <button
-            onClick={onInterrupt}
-            className="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, #D97706, #FFB800)',
-              boxShadow: '0 0 24px rgba(217, 119, 6, 0.45), 0 4px 16px rgba(0,0,0,0.4)',
-            }}
-            title="Interrupt AI"
-          >
-            <Zap size={20} className="text-white" strokeWidth={2.5} />
-          </button>
-        )}
-
-        {/* Main mic button */}
+      <div className="flex items-center gap-4">
+        {/* Mute button */}
         <button
-          onClick={isConnected ? onDisconnect : onConnect}
-          className="relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95"
-          style={
-            isConnected
-              ? {
-                  background: 'linear-gradient(135deg, #FF2D00, #FF6B00)',
-                  boxShadow: `0 0 38px rgba(255, 69, 0, 0.55), 0 0 80px rgba(255, 107, 0, 0.22), 0 4px 20px rgba(0,0,0,0.5)`,
-                }
-              : {
-                  background: 'linear-gradient(135deg, #6D28D9, #9333EA)',
-                  boxShadow: `0 0 38px rgba(109, 40, 217, 0.55), 0 0 80px rgba(147, 51, 234, 0.22), 0 4px 20px rgba(0,0,0,0.5)`,
-                }
-          }
+          onClick={() => {
+            setMuted(!muted);
+            if (!muted) onInterrupt();
+          }}
+          className="w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{
+            background: muted ? 'rgba(220, 38, 38, 0.08)' : 'rgba(11, 43, 91, 0.06)',
+            border: muted ? '1.5px solid rgba(220, 38, 38, 0.2)' : '1.5px solid rgba(11,43,91,0.1)',
+          }}
+          aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
+          title={muted ? 'Unmute' : 'Mute'}
         >
-          {/* Ping ring when active */}
-          {isConnected && (
-            <span
-              className="absolute inset-0 rounded-full animate-ping opacity-20"
-              style={{ background: 'rgba(255, 107, 0, 0.6)' }}
-            />
-          )}
-          {isConnected ? (
-            <MicOff size={32} className="text-white relative z-10" strokeWidth={2} />
+          {muted ? (
+            <MicOff size={20} style={{ color: '#DC2626' }} />
           ) : (
-            <Mic size={32} className="text-white relative z-10" strokeWidth={2} />
+            <Mic size={20} style={{ color: 'var(--bc-navy)' }} />
           )}
         </button>
-      </div>
 
-      {/* ── Hint text ── */}
-      <p
-        className="text-xs transition-colors duration-500"
-        style={{ color: 'rgba(255,255,255,0.22)' }}
-      >
-        {isConnected ? 'Tap to disconnect' : 'Tap to connect'}
-      </p>
+        {/* End call button */}
+        <button
+          onClick={onDisconnect}
+          className="w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{
+            background: 'linear-gradient(135deg, #DC2626, #EF4444)',
+            boxShadow: '0 4px 16px rgba(220, 38, 38, 0.3), 0 2px 6px rgba(0,0,0,0.1)',
+          }}
+          aria-label="End call"
+          title="End call"
+        >
+          <PhoneOff size={22} className="text-white" strokeWidth={2} />
+        </button>
+      </div>
     </div>
   );
 }

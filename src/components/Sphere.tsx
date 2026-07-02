@@ -12,44 +12,44 @@ type SphereProps = {
 // ── Color palette per state ──────────────────────────────────────────────────
 const STATE_CONFIG = {
   idle: {
-    color: '#7C3AED',
-    emissive: '#3B0764',
+    color: '#0F8B8D',
+    emissive: '#065F60',
     emissiveIntensity: 0.3,
     distort: 0.2,
     speed: 1.0,
-    particleColor: '#A855F7',
-    light1: '#7C3AED',
-    light2: '#A855F7',
+    particleColor: '#14B8A6',
+    light1: '#0F8B8D',
+    light2: '#14B8A6',
   },
   listening: {
-    color: '#A855F7',
-    emissive: '#6D28D9',
+    color: '#14B8A6',
+    emissive: '#0F8B8D',
     emissiveIntensity: 0.45,
     distort: 0.35,
     speed: 2.0,
-    particleColor: '#C084FC',
-    light1: '#A855F7',
-    light2: '#C084FC',
+    particleColor: '#2DD4BF',
+    light1: '#14B8A6',
+    light2: '#2DD4BF',
   },
   thinking: {
-    color: '#FFB800',
-    emissive: '#D97706',
+    color: '#D69E2E',
+    emissive: '#B7791F',
     emissiveIntensity: 0.4,
     distort: 0.15,
     speed: 1.5,
-    particleColor: '#FCD34D',
-    light1: '#FFB800',
-    light2: '#D97706',
+    particleColor: '#F6E05E',
+    light1: '#D69E2E',
+    light2: '#B7791F',
   },
   speaking: {
-    color: '#FF6B00',
-    emissive: '#FF2D00',
+    color: '#7C5CFF',
+    emissive: '#5B3FD4',
     emissiveIntensity: 0.55,
     distort: 0.45,
     speed: 3.0,
-    particleColor: '#FF8C00',
-    light1: '#FF6B00',
-    light2: '#FF4500',
+    particleColor: '#A78BFA',
+    light1: '#7C5CFF',
+    light2: '#9F7AEA',
   },
 };
 
@@ -69,7 +69,7 @@ function SpeakingRing({ delay }: { delay: number }) {
     <mesh ref={meshRef}>
       <torusGeometry args={[0.92, 0.016, 8, 128]} />
       <meshBasicMaterial
-        color="#FF6B00"
+        color="#7C5CFF"
         transparent
         opacity={0.5}
         side={THREE.DoubleSide}
@@ -153,7 +153,7 @@ function Particles({ status }: { status: Status }) {
     <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
         size={0.018}
-        color="#A855F7"
+        color="#14B8A6"
         transparent
         opacity={0.65}
         sizeAttenuation
@@ -176,9 +176,9 @@ function DynamicLights({ status }: { status: Status }) {
 
   return (
     <>
-      <pointLight ref={light1Ref} position={[4, 3, 4]} intensity={2.5} color="#7C3AED" />
-      <pointLight ref={light2Ref} position={[-4, -3, -3]} intensity={2.0} color="#A855F7" />
-      <pointLight position={[0, -4, 2]} intensity={0.8} color="#FF4500" />
+      <pointLight ref={light1Ref} position={[4, 3, 4]} intensity={2.5} color="#0F8B8D" />
+      <pointLight ref={light2Ref} position={[-4, -3, -3]} intensity={2.0} color="#14B8A6" />
+      <pointLight position={[0, -4, 2]} intensity={0.8} color="#7C5CFF" />
     </>
   );
 }

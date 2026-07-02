@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MessageCircle, Sparkles } from 'lucide-react';
+import { MessageCircle, Headphones, User, Sparkles } from 'lucide-react';
 import { Message } from '../hooks/useWebSocket';
 
 type ChatPanelProps = {
@@ -18,44 +18,21 @@ export function ChatPanel({ messages, status }: ChatPanelProps) {
   const visibleCount = messages.filter((m) => m.speaker !== 'system').length;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* ── Panel header ── */}
-      <div
-        className="flex-shrink-0 flex items-center justify-between px-6 py-4"
-        style={{ borderBottom: '1px solid rgba(124, 58, 237, 0.18)' }}
-      >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(168,85,247,0.15))',
-              border: '1px solid rgba(124, 58, 237, 0.35)',
-            }}
-          >
-            <MessageCircle size={15} style={{ color: '#A855F7' }} />
+    <div className="chat-panel-root">
+      {/* ── Premium Panel Header ── */}
+      <div className="chat-panel-header">
+        <div className="chat-panel-header-left">
+          <div className="chat-header-icon-wrap">
+            <MessageCircle size={13} strokeWidth={2.5} />
+            <span className="chat-header-icon-ping" />
           </div>
-          <div>
-            <p
-              className="text-xs font-bold tracking-[0.25em] uppercase"
-              style={{ color: '#C084FC', fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              Conversation
-            </p>
-            <p className="text-xs" style={{ color: 'rgba(168, 85, 247, 0.45)', marginTop: '1px' }}>
-              Voice transcript
-            </p>
-          </div>
+          <span className="chat-header-title">Transcript</span>
+          <span className="chat-header-live-dot" />
         </div>
 
         {visibleCount > 0 && (
-          <span
-            className="text-xs font-semibold px-2.5 py-1 rounded-full"
-            style={{
-              background: 'rgba(124, 58, 237, 0.15)',
-              color: '#A855F7',
-              border: '1px solid rgba(124, 58, 237, 0.3)',
-            }}
-          >
+          <span className="chat-header-count">
+            <Sparkles size={10} strokeWidth={2.5} />
             {visibleCount}
           </span>
         )}
@@ -64,124 +41,92 @@ export function ChatPanel({ messages, status }: ChatPanelProps) {
       {/* ── Messages scroll area ── */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-5 space-y-4"
+        className="chat-panel-messages"
       >
         {messages.length === 0 ? (
           /* ── Empty state ── */
-          <div className="flex flex-col items-center justify-center h-full gap-5 select-none">
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center"
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(59, 7, 100, 0.6), rgba(109, 40, 217, 0.3))',
-                border: '1px solid rgba(124, 58, 237, 0.3)',
-                boxShadow: '0 0 30px rgba(124, 58, 237, 0.15)',
-                animation: 'glowPulse 2.5s ease-in-out infinite',
-              }}
-            >
-              <Sparkles size={32} style={{ color: '#A855F7' }} />
+          <div className="chat-empty-state">
+            <div className="chat-empty-icon-ring">
+              <div className="chat-empty-icon-inner">
+                <MessageCircle size={24} strokeWidth={1.5} />
+              </div>
+              <span className="chat-empty-ring-pulse" />
             </div>
-            <div className="text-center">
-              <p
-                className="text-sm font-medium"
-                style={{ color: '#C084FC', fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                Ready to listen
-              </p>
-              <p className="text-xs mt-1" style={{ color: 'rgba(168, 85, 247, 0.45)' }}>
-                Connect and start speaking to begin
-              </p>
+            <p className="chat-empty-text">Conversation will appear here</p>
+            <div className="chat-empty-dots">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="chat-empty-dot" style={{ animationDelay: `${i * 0.2}s` }} />
+              ))}
             </div>
           </div>
         ) : (
           messages.map((message, index) => (
             <div
               key={index}
-              className="animate-slide-up"
-              style={{
-                display: 'flex',
-                justifyContent:
-                  message.speaker === 'user'
-                    ? 'flex-end'
-                    : message.speaker === 'system'
-                    ? 'center'
-                    : 'flex-start',
-              }}
+              className={`chat-msg-row chat-msg-row--${message.speaker}`}
+              style={{ animationDelay: `${Math.min(index * 0.06, 0.5)}s` }}
             >
               {message.speaker === 'system' ? (
                 /* ── System message ── */
-                <div
-                  className="text-xs italic px-4 py-1.5 rounded-full"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    color: 'rgba(255, 255, 255, 0.35)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                  }}
-                >
-                  {message.text}
+                <div className="chat-system-msg">
+                  <span className="chat-system-line" />
+                  <span className="chat-system-text">{message.text}</span>
+                  <span className="chat-system-line" />
                 </div>
               ) : (
                 /* ── Chat bubble ── */
-                <div
-                  className="max-w-[82%] rounded-2xl px-4 py-3"
-                  style={
-                    message.speaker === 'user'
-                      ? {
-                          background: 'linear-gradient(135deg, #FF4500 0%, #FF6B00 100%)',
-                          boxShadow:
-                            '0 4px 20px rgba(255, 69, 0, 0.28), 0 1px 0 rgba(255,255,255,0.08) inset',
-                        }
-                      : {
-                          background:
-                            'linear-gradient(135deg, rgba(59, 7, 100, 0.75) 0%, rgba(109, 40, 217, 0.55) 100%)',
-                          border: '1px solid rgba(124, 58, 237, 0.32)',
-                          boxShadow: '0 4px 20px rgba(124, 58, 237, 0.18)',
-                        }
-                  }
-                >
-                  <div
-                    className="text-xs font-bold tracking-[0.2em] uppercase mb-1.5 opacity-75"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
-                    {message.speaker === 'user' ? 'You' : 'AI'}
+                <div className={`chat-bubble-wrap chat-bubble-wrap--${message.speaker}`}>
+                  {/* Avatar */}
+                  <div className={`chat-avatar chat-avatar--${message.speaker}`}>
+                    {message.speaker === 'user' ? (
+                      <User size={14} strokeWidth={2.2} />
+                    ) : (
+                      <Headphones size={14} strokeWidth={2.2} />
+                    )}
+                    <span className={`chat-avatar-glow chat-avatar-glow--${message.speaker}`} />
                   </div>
-                  <div className="text-sm leading-relaxed text-white font-light">
-                    {message.text}
+
+                  {/* Bubble */}
+                  <div className={`chat-bubble chat-bubble--${message.speaker}`}>
+                    <div className="chat-bubble-header">
+                      <span className="chat-bubble-speaker">
+                        {message.speaker === 'user' ? 'You' : 'Suhaas'}
+                      </span>
+                      <span className="chat-bubble-accent" />
+                    </div>
+                    <div className="chat-bubble-text">
+                      {message.text}
+                    </div>
+                    {/* Decorative shimmer */}
+                    <span className="chat-bubble-shimmer" />
                   </div>
                 </div>
               )}
             </div>
           ))
         )}
+
         {/* ── Typing indicator ── */}
         {status === 'thinking' && (
-          <div className="animate-slide-up" style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{
-                background: 'linear-gradient(135deg, rgba(59, 7, 100, 0.75) 0%, rgba(109, 40, 217, 0.55) 100%)',
-                border: '1px solid rgba(124, 58, 237, 0.32)',
-                boxShadow: '0 4px 20px rgba(124, 58, 237, 0.18)',
-              }}
-            >
-              <div
-                className="text-xs font-bold tracking-[0.2em] uppercase mb-2 opacity-75"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                AI
+          <div className="chat-msg-row chat-msg-row--ai" style={{ animationDelay: '0s' }}>
+            <div className="chat-bubble-wrap chat-bubble-wrap--ai">
+              <div className="chat-avatar chat-avatar--ai">
+                <Headphones size={14} strokeWidth={2.2} />
+                <span className="chat-avatar-glow chat-avatar-glow--ai" />
               </div>
-              <div className="flex gap-1.5 items-center h-4">
-                {[0, 0.18, 0.36].map((delay, i) => (
-                  <div
-                    key={i}
-                    className="w-2 h-2 rounded-full"
-                    style={{
-                      background: '#A855F7',
-                      animation: 'typingDot 1.2s ease-in-out infinite',
-                      animationDelay: `${delay}s`,
-                    }}
-                  />
-                ))}
+              <div className="chat-bubble chat-bubble--ai chat-bubble--typing">
+                <div className="chat-bubble-header">
+                  <span className="chat-bubble-speaker">Suhaas</span>
+                </div>
+                <div className="chat-typing-wave">
+                  {[0, 1, 2, 3].map((i) => (
+                    <span
+                      key={i}
+                      className="chat-typing-bar"
+                      style={{ animationDelay: `${i * 0.12}s` }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
