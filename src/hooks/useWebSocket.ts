@@ -19,9 +19,15 @@ export const useWebSocket = () => {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Gapless playback via the Web Audio API. Each incoming WAV chunk is decoded
+  // to an AudioBuffer and scheduled on the shared AudioContext timeline right
+  // after the previous one, so chunks butt up sample-accurately with no gap or
+  // click. (The old approach played one <audio> element per chunk, chained via
+  // onended — which left an audible gap at every chunk boundary → "breaking".)
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
-  const isPlayingRef = useRef(false);
+  const isPumpingRef = useRef(false); // is the decode/schedule pump running?
+  const nextStartTimeRef = useRef(0); // AudioContext time for the next chunk
+  const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   // Audio gate: after a barge-in/interrupt we flush the queue, but the server
   // may still have in-flight WAV chunks from the CANCELLED turn arriving over
   // the socket a moment later. Without a gate those late chunks get re-enqueued
@@ -31,43 +37,74 @@ export const useWebSocket = () => {
   const acceptAudioRef = useRef(true);
 
   const stopCurrentAudio = useCallback(() => {
+    // Flush queued chunks and stop everything already scheduled on the timeline
+    // (barge-in / interrupt must cut audio instantly). Clear onended first so
+    // teardown doesn't fire a spurious "finished → listening" status change.
     audioQueueRef.current = [];
-    isPlayingRef.current = false;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current.src = '';
-      currentAudioRef.current = null;
+    for (const src of scheduledSourcesRef.current) {
+      try {
+        src.onended = null;
+        src.stop();
+      } catch {
+        /* already stopped or ended — ignore */
+      }
     }
+    scheduledSourcesRef.current = [];
+    nextStartTimeRef.current = 0;
+    isPumpingRef.current = false;
   }, []);
 
-  const drainAudioQueue = useCallback(() => {
-    if (audioQueueRef.current.length === 0) {
-      isPlayingRef.current = false;
-      currentAudioRef.current = null;
-      setStatus('listening');
-      return;
+  // Decode + schedule queued chunks IN ORDER. decodeAudioData is async, so a
+  // single serial pump is required — decoding chunks concurrently could resolve
+  // out of order and scramble the audio.
+  const pumpAudioQueue = useCallback(async () => {
+    if (isPumpingRef.current) return;
+    const ctx = audioContextRef.current;
+    if (!ctx) return;
+    isPumpingRef.current = true;
+    try {
+      while (audioQueueRef.current.length > 0) {
+        const data = audioQueueRef.current.shift()!;
+        let buffer: AudioBuffer;
+        try {
+          // decodeAudioData detaches the buffer, so hand it a private copy.
+          buffer = await ctx.decodeAudioData(data.slice(0));
+        } catch (err) {
+          console.error('decodeAudioData failed, skipping chunk:', err);
+          continue;
+        }
+        // A barge-in may have flushed the queue while we awaited the decode.
+        if (!acceptAudioRef.current) continue;
+        // Schedule right after the previous chunk. If we underran (chunk arrived
+        // late), start just ahead of "now" instead of in the past.
+        const startAt = Math.max(ctx.currentTime + 0.02, nextStartTimeRef.current);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        src.start(startAt);
+        nextStartTimeRef.current = startAt + buffer.duration;
+        scheduledSourcesRef.current.push(src);
+        setStatus('speaking');
+        src.onended = () => {
+          scheduledSourcesRef.current = scheduledSourcesRef.current.filter((s) => s !== src);
+          // Turn is done playing only when nothing is scheduled AND nothing queued.
+          if (scheduledSourcesRef.current.length === 0 && audioQueueRef.current.length === 0) {
+            nextStartTimeRef.current = 0;
+            setStatus('listening');
+          }
+        };
+      }
+    } finally {
+      isPumpingRef.current = false;
     }
-    const data = audioQueueRef.current.shift()!;
-    const blob = new Blob([data], { type: 'audio/wav' });
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    currentAudioRef.current = audio;
-    isPlayingRef.current = true;
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
-      drainAudioQueue();
-    };
-    audio.play().catch(console.error);
   }, []);
 
   const enqueueAudio = useCallback(
     (data: ArrayBuffer) => {
       audioQueueRef.current.push(data);
-      if (!isPlayingRef.current) {
-        drainAudioQueue();
-      }
+      void pumpAudioQueue();
     },
-    [drainAudioQueue]
+    [pumpAudioQueue]
   );
 
   const startMicrophone = useCallback(async (audioContext: AudioContext) => {
