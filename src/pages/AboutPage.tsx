@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Users, MapPin, Award, Shield, Languages, Heart, Target, Globe } from 'lucide-react';
+import { Users, MapPin, Award, Shield, Languages, Heart, Target, Globe, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { SpotlightCard } from '../components/SpotlightCard';
 
 const STATS = [
   { value: '2009', label: 'Founded' },
@@ -31,57 +33,92 @@ const VALUES = [
   },
 ];
 
+const revealVariants = {
+  hidden: { opacity: 0, y: 25 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
 export function AboutPage() {
   return (
-    <div>
+    <div className="overflow-hidden">
       {/* ═══ Hero ═══════════════════════════════════════════════════════════ */}
       <section
-        className="py-14 md:py-20 text-center"
-        style={{
-          background: 'linear-gradient(135deg, #0B2B5B 0%, #0F4C75 50%, #0F8B8D 100%)',
-        }}
+        className="py-20 md:py-24 text-center bg-mesh-dynamic bg-noise text-white relative"
       >
-        <div className="container-site">
-          <h1
-            className="text-3xl md:text-5xl font-extrabold text-white"
+        <div className="container-site relative z-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-4 inline-flex px-3 py-1 rounded-full text-xs font-bold text-teal-300 border border-teal-500/25 bg-teal-950/20 backdrop-blur-md items-center gap-1.5"
+          >
+            <Sparkles size={12} className="animate-pulse" />
+            <span>Connecting India Seamlessly</span>
+          </motion.div>
+          <motion.h1
+            className="text-4xl md:text-5xl font-extrabold"
             style={{ fontFamily: "'Plus Jakarta Sans'" }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
           >
             About BharatConnect
-          </h1>
-          <p className="mt-3 text-base md:text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.7)' }}>
+          </motion.h1>
+          <motion.p 
+            className="mt-4 text-base md:text-lg max-w-2xl mx-auto text-white/80"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
             India's trusted telecom operator — connecting millions with reliable networks and support in the languages they speak.
-          </p>
+          </motion.p>
         </div>
       </section>
 
       {/* ═══ Stats ══════════════════════════════════════════════════════════ */}
-      <section className="bg-white border-b" style={{ borderColor: 'rgba(11,43,91,0.06)' }}>
+      <section className="bg-white border-b border-gray-150">
         <div className="container-site py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            {STATS.map((s) => (
-              <div key={s.label}>
-                <p className="text-2xl md:text-3xl font-extrabold" style={{ color: 'var(--bc-teal)' }}>
+          <motion.div 
+            className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={staggerContainer}
+          >
+            {STATS.map((s, i) => (
+              <motion.div key={s.label} variants={revealVariants}>
+                <p className="text-3xl md:text-4xl font-extrabold text-teal-650">
                   {s.value}
                 </p>
-                <p className="text-sm mt-0.5" style={{ color: 'var(--bc-ink)', opacity: 0.55 }}>
+                <p className="text-xs font-bold mt-1 text-slate-400 uppercase tracking-widest">
                   {s.label}
                 </p>
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ═══ Our Story ═════════════════════════════════════════════════════ */}
-      <section className="container-site py-14 md:py-20">
-        <div className="max-w-3xl mx-auto">
+      <section className="container-site py-20 md:py-28">
+        <motion.div 
+          className="max-w-3xl mx-auto"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true }}
+          variants={revealVariants}
+        >
           <h2
-            className="text-2xl md:text-3xl font-extrabold mb-6"
-            style={{ color: 'var(--bc-navy)', fontFamily: "'Plus Jakarta Sans'" }}
+            className="text-2xl md:text-3xl font-extrabold mb-8 text-slate-850 tracking-tight"
+            style={{ fontFamily: "'Plus Jakarta Sans'" }}
           >
             Our Story
           </h2>
-          <div className="space-y-4 text-sm leading-relaxed" style={{ color: 'var(--bc-ink)', opacity: 0.7 }}>
+          <div className="space-y-5 text-sm md:text-base leading-relaxed text-gray-500">
             <p>
               BharatConnect was founded in <strong>2009</strong> in <strong>Pune, Maharashtra</strong>, with a simple
               belief: every Indian deserves affordable, reliable connectivity — and support in the language they
@@ -105,100 +142,124 @@ export function AboutPage() {
               obligations seriously — from tariff transparency to grievance redressal timelines.
             </p>
           </div>
-        </div>
+        </motion.div>
       </section>
 
       {/* ═══ Leadership ════════════════════════════════════════════════════ */}
-      <section className="section-mist py-14 md:py-16">
+      <section className="bg-gray-50 py-20 border-y border-gray-150">
         <div className="container-site">
           <div className="max-w-3xl mx-auto">
-            <h2
-              className="text-xl md:text-2xl font-extrabold mb-8 text-center"
-              style={{ color: 'var(--bc-navy)', fontFamily: "'Plus Jakarta Sans'" }}
+            <motion.h2
+              className="text-2xl md:text-3xl font-extrabold mb-12 text-center text-slate-800"
+              style={{ fontFamily: "'Plus Jakarta Sans'" }}
+              initial={{ opacity: 0, y: 15 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
             >
               Leadership
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            </motion.h2>
+            
+            <motion.div 
+              className="grid grid-cols-1 md:grid-cols-3 gap-6"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-50px' }}
+              variants={staggerContainer}
+            >
               {[
                 { name: 'Ananya Deshpande', role: 'CEO & Managing Director', icon: Users },
-                { name: 'Rahul Joshi', role: 'VP, Customer Experience & Nodal Officer', icon: Award },
-                { name: 'Priya Iyer', role: 'Chief Regulatory Officer & Appellate Authority', icon: Globe },
+                { name: 'Rahul Joshi', role: 'VP, CX & Nodal Officer', icon: Award },
+                { name: 'Priya Iyer', role: 'Chief Regulatory Officer', icon: Globe },
               ].map((person) => (
-                <div
-                  key={person.name}
-                  className="bg-white rounded-xl p-6 text-center"
-                  style={{ border: '1px solid rgba(11,43,91,0.06)' }}
-                >
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-                    style={{ background: 'linear-gradient(135deg, rgba(15,139,141,0.1), rgba(11,43,91,0.05))' }}
-                  >
-                    <person.icon size={22} style={{ color: 'var(--bc-teal)' }} />
-                  </div>
-                  <h3 className="font-bold text-sm" style={{ color: 'var(--bc-navy)' }}>
-                    {person.name}
-                  </h3>
-                  <p className="text-xs mt-1" style={{ color: 'var(--bc-ink)', opacity: 0.5 }}>
-                    {person.role}
-                  </p>
-                </div>
+                <motion.div key={person.name} variants={revealVariants}>
+                  <SpotlightCard className="bg-white border border-slate-100 p-6 flex flex-col items-center text-center h-full">
+                    <div
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-slate-100 bg-teal-500/10 text-teal-600"
+                    >
+                      <person.icon size={20} />
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-800">
+                      {person.name}
+                    </h3>
+                    <p className="text-xs mt-1.5 text-gray-400">
+                      {person.role}
+                    </p>
+                  </SpotlightCard>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
       {/* ═══ Our Values ════════════════════════════════════════════════════ */}
-      <section className="container-site py-14 md:py-20">
+      <section className="container-site py-20 md:py-28">
         <div className="max-w-3xl mx-auto">
-          <h2
-            className="text-xl md:text-2xl font-extrabold mb-8 text-center"
-            style={{ color: 'var(--bc-navy)', fontFamily: "'Plus Jakarta Sans'" }}
+          <motion.h2
+            className="text-2xl md:text-3xl font-extrabold mb-12 text-center text-slate-850"
+            style={{ fontFamily: "'Plus Jakarta Sans'" }}
+            initial={{ opacity: 0, y: 15 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
           >
             Our Values
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          </motion.h2>
+          
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 gap-6"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-50px' }}
+            variants={staggerContainer}
+          >
             {VALUES.map((v) => (
-              <div
-                key={v.title}
-                className="bg-white rounded-xl p-6 flex gap-4"
-                style={{ border: '1px solid rgba(11,43,91,0.06)' }}
-              >
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(15,139,141,0.08)' }}
-                >
-                  <v.icon size={18} style={{ color: 'var(--bc-teal)' }} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm mb-1.5" style={{ color: 'var(--bc-navy)' }}>
-                    {v.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--bc-ink)', opacity: 0.6 }}>
-                    {v.desc}
-                  </p>
-                </div>
-              </div>
+              <motion.div key={v.title} variants={revealVariants}>
+                <SpotlightCard className="bg-white rounded-2xl p-6 flex gap-4 border border-slate-100 h-full">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-teal-500/10 bg-teal-500/10 text-teal-600"
+                  >
+                    <v.icon size={18} />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-bold text-sm mb-2 text-slate-800">
+                      {v.title}
+                    </h3>
+                    <p className="text-xs md:text-sm leading-relaxed text-gray-500">
+                      {v.desc}
+                    </p>
+                  </div>
+                </SpotlightCard>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ═══ HQ Info ═══════════════════════════════════════════════════════ */}
-      <section className="section-mist py-14 text-center">
+      <section className="bg-gray-50 py-16 text-center border-t border-gray-150">
         <div className="container-site">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <MapPin size={20} style={{ color: 'var(--bc-teal)' }} />
-            <h2 className="text-lg font-bold" style={{ color: 'var(--bc-navy)' }}>
-              Headquarters
-            </h2>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--bc-ink)', opacity: 0.6 }}>
-            BharatConnect Tower, Hinjewadi IT Park, Pune 411057, Maharashtra, India
-          </p>
-          <Link to="/support" className="btn-primary mt-6 inline-flex">
-            Contact us
-          </Link>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={revealVariants}
+            className="flex flex-col items-center"
+          >
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <MapPin size={20} className="text-teal-600" />
+              <h2 className="text-lg font-bold text-slate-800">
+                Headquarters
+              </h2>
+            </div>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              BharatConnect Tower, Hinjewadi IT Park, Pune 411057, Maharashtra, India
+            </p>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="inline-block mt-6">
+              <Link to="/support" className="btn-primary">
+                Contact us
+              </Link>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
     </div>

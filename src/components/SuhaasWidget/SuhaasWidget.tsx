@@ -1,252 +1,175 @@
-import { useEffect, useRef } from 'react';
-import { Phone, ChevronDown, X } from 'lucide-react';
+import { useEffect } from 'react';
+import { Phone, X, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSuhaas } from './SuhaasContext';
-import { useWebSocket } from '../../hooks/useWebSocket';
-import { ChatPanel } from '../ChatPanel';
-import { Controls } from '../Controls';
+import { IPhoneMockup } from '../iPhoneMockup';
 
 const STATUS_DOT_COLORS: Record<string, string> = {
   idle: '#0F8B8D',
   listening: '#14B8A6',
   thinking: '#B7791F',
-  speaking: '#0F8B8D',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  idle: 'Ready',
-  listening: 'Listening',
-  thinking: 'Processing',
-  speaking: 'Speaking',
+  speaking: '#7C5CFF',
 };
 
 export function SuhaasWidget() {
-  const { isOpen, openSuhaas, closeSuhaas } = useSuhaas();
-  const { isConnected, status, messages, micVolume, connect, disconnect, interrupt } =
-    useWebSocket();
+  const {
+    isOpen,
+    openSuhaas,
+    closeSuhaas,
+    isConnected,
+    status,
+    disconnect,
+  } = useSuhaas();
 
-  const panelRef = useRef<HTMLDivElement>(null);
+  // Close assistant connection and dialog
+  const handleClose = () => {
+    if (isConnected) disconnect();
+    closeSuhaas();
+  };
 
   // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) closeSuhaas();
+      if (e.key === 'Escape' && isOpen) {
+        handleClose();
+      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [isOpen, closeSuhaas]);
+  }, [isOpen, isConnected]);
 
   return (
     <>
-      {/* ── Collapsed FAB ──────────────────────────────────────────────── */}
-      <button
+      {/* ── 3D Floating Arrow and Badge (Guides to FAB) ── */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.div
+            className="fixed z-[9997] flex flex-col items-center gap-2.5 pointer-events-none left-1/2 -translate-x-1/2 md:left-auto md:translate-x-0 md:right-[20px]"
+            style={{
+              bottom: '90px',
+            }}
+            initial={{ opacity: 0, y: 15, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.9 }}
+            transition={{ delay: 0.5, duration: 0.4 }}
+          >
+            {/* Glowing Badge */}
+            <motion.div
+              className="px-4 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 shadow-2xl border border-teal-400/20"
+              style={{
+                background: 'linear-gradient(135deg, #0F8B8D, #7C5CFF)',
+                boxShadow: '0 8px 30px rgba(124, 92, 255, 0.4), 0 2px 8px rgba(0,0,0,0.15)',
+              }}
+              animate={{
+                y: [0, -6, 0],
+                boxShadow: [
+                  '0 8px 24px rgba(124, 92, 255, 0.3), 0 2px 8px rgba(0,0,0,0.15)',
+                  '0 12px 36px rgba(20, 184, 166, 0.5), 0 2px 8px rgba(0,0,0,0.15)',
+                  '0 8px 24px rgba(124, 92, 255, 0.3), 0 2px 8px rgba(0,0,0,0.15)',
+                ],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            >
+              <Sparkles size={12} className="text-teal-300 animate-pulse" />
+              <span>Try the AI Voice Bot</span>
+            </motion.div>
+
+            {/* 3D Styled Arrow */}
+            <motion.div
+              className="text-2xl filter drop-shadow-[0_4px_6px_rgba(15,139,141,0.5)]"
+              animate={{
+                y: [0, 8, 0],
+                rotate: [12, -8, 12],
+                scale: [1, 1.1, 1],
+              }}
+              transition={{
+                duration: 2.2,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            >
+              👇
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Collapsed FAB (Call Suhaas Button) ── */}
+      <motion.button
         onClick={openSuhaas}
-        className={`fixed z-[9998] flex items-center gap-2.5 rounded-full text-white transition-all duration-500 hover:scale-105 active:scale-95 ${
-          isOpen ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100 pointer-events-auto'
-        }`}
+        className="fixed z-[9998] flex items-center gap-2.5 rounded-full text-white"
         style={{
           bottom: '20px',
           right: '20px',
           padding: '14px 22px',
           background: 'linear-gradient(135deg, #0F8B8D, #0B2B5B)',
           boxShadow: '0 8px 32px rgba(15, 139, 141, 0.3), 0 4px 12px rgba(0,0,0,0.15)',
-          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
+        animate={
+          isOpen
+            ? { opacity: 0, scale: 0.8, y: 15, pointerEvents: 'none' }
+            : { opacity: 1, scale: 1, y: 0, pointerEvents: 'auto' }
+        }
+        whileHover={{ scale: 1.05, y: -2 }}
+        whileTap={{ scale: 0.95 }}
+        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         aria-label="Open voice assistant Suhaas"
         id="suhaas-fab"
       >
         <Phone size={18} strokeWidth={2.2} />
         <span className="text-sm font-semibold hidden sm:inline">Call Suhaas</span>
         <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
+          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
           style={{ background: STATUS_DOT_COLORS[status] || STATUS_DOT_COLORS.idle }}
         />
-      </button>
+      </motion.button>
 
-      {/* ── Backdrop (mobile) ── */}
-      <div
-        className={`fixed inset-0 z-[9998] bg-black/30 md:hidden transition-opacity duration-300 ${
-          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={closeSuhaas}
-        aria-hidden="true"
-        style={{
-          transition: 'opacity 0.3s ease',
-          visibility: isOpen ? 'visible' : 'hidden',
-        }}
-      />
+      {/* ── Expanded Dialog (iPhone Calling Flow Modal Overlay) ── */}
+      <AnimatePresence>
+        {isOpen && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            
+            {/* Fullscreen Backdrop Blur */}
+            <motion.div
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleClose}
+              aria-hidden="true"
+            />
 
-      {/* ── Expanded Panel ── */}
-      <div
-        ref={panelRef}
-        className="fixed z-[9999] flex flex-col overflow-hidden"
-        style={{
-          bottom: '0',
-          right: '0',
-          width: '100%',
-          maxWidth: '400px',
-          height: '70vh',
-          borderRadius: '1rem 1rem 0 0',
-          background: 'var(--bc-cloud)',
-          border: '1px solid rgba(11, 43, 91, 0.1)',
-          boxShadow: '0 -4px 40px rgba(0,0,0,0.12), 0 0 0 1px rgba(11,43,91,0.04)',
-          transformOrigin: 'bottom right',
-          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-          opacity: isOpen ? 1 : 0,
-          transform: isOpen ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.92)',
-          pointerEvents: isOpen ? 'auto' : 'none',
-          visibility: isOpen ? 'visible' : 'hidden',
-        }}
-        role="dialog"
-        aria-label="Suhaas voice assistant"
-        aria-modal="true"
-      >
-        {/* ── Header ── */}
-        <div
-          className="flex-shrink-0 flex items-center justify-between px-5 py-3.5"
-          style={{
-            background: 'linear-gradient(135deg, #0B2B5B, #0F4C75)',
-            borderBottom: '1px solid rgba(11,43,91,0.1)',
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{
-                background: 'rgba(255,255,255,0.12)',
-                border: '1px solid rgba(255,255,255,0.15)',
-              }}
+            {/* iOS Spring Mockup Modal Container */}
+            <motion.div
+              className="relative z-10 w-full max-w-[290px] flex justify-center items-center pointer-events-auto"
+              initial={{ opacity: 0, y: 35, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 35, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 210 }}
             >
-              <Phone size={16} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Suhaas
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'animate-pulse' : ''}`}
-                  style={{
-                    background: isConnected ? '#14B8A6' : 'rgba(255,255,255,0.4)',
-                  }}
-                />
-                <span className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                  {isConnected ? STATUS_LABELS[status] || 'Connected' : 'BharatConnect Voice Support'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              onClick={closeSuhaas}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/50 hover:text-white/90 hover:bg-white/10 transition-colors"
-              aria-label="Minimize voice assistant"
-            >
-              <ChevronDown size={18} />
-            </button>
-            <button
-              onClick={() => {
-                if (isConnected) disconnect();
-                closeSuhaas();
-              }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/50 hover:text-red-300 hover:bg-white/10 transition-colors"
-              aria-label="Close voice assistant"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Body ── */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Idle screen (always present, transitions out when connected) */}
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-6 transition-all duration-500"
-            style={{
-              opacity: !isConnected ? 1 : 0,
-              transform: !isConnected ? 'scale(1)' : 'scale(0.95)',
-              pointerEvents: !isConnected ? 'auto' : 'none',
-              background: 'var(--bc-cloud)',
-            }}
-          >
-            <div className="text-center">
-              <div
-                className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(15,139,141,0.08), rgba(11,43,91,0.06))',
-                  border: '2px solid rgba(15,139,141,0.15)',
-                }}
+              {/* Close Button on Desktop outside the phone body */}
+              <button
+                onClick={handleClose}
+                className="absolute -top-12 md:-right-12 md:top-2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center backdrop-blur-md border border-white/10 transition-colors cursor-pointer active:scale-95"
+                aria-label="Close voice assistant"
               >
-                <Phone size={32} style={{ color: 'var(--bc-teal)' }} />
-              </div>
-              <h3 className="text-lg font-bold" style={{ color: 'var(--bc-navy)', fontFamily: "'Plus Jakarta Sans'" }}>
-                Talk to Suhaas
-              </h3>
-              <p className="text-sm mt-1.5 max-w-[260px]" style={{ color: 'var(--bc-ink)', opacity: 0.5 }}>
-                BharatConnect's AI voice assistant. Available 24×7 in 7 languages.
-              </p>
-            </div>
+                <X size={20} />
+              </button>
 
-            <button
-              onClick={connect}
-              className="w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg active:scale-95"
-              style={{
-                background: 'linear-gradient(135deg, #0F8B8D, #14B8A6)',
-                boxShadow: '0 6px 24px rgba(15, 139, 141, 0.35), 0 4px 12px rgba(0,0,0,0.1)',
-              }}
-              aria-label="Start call with Suhaas"
-            >
-              <Phone size={26} className="text-white" strokeWidth={2} />
-            </button>
-            <p className="text-xs animate-pulse-slow" style={{ color: 'var(--bc-ink)', opacity: 0.35 }}>
-              Tap to call
-            </p>
+              {/* iPhone Mockup with nested calling state */}
+              <IPhoneMockup />
+            </motion.div>
+
           </div>
+        )}
+      </AnimatePresence>
 
-          {/* Active Call screen (transitions in when connected) */}
-          <div
-            className="absolute inset-0 flex flex-col overflow-hidden transition-all duration-500"
-            style={{
-              opacity: isConnected ? 1 : 0,
-              transform: isConnected ? 'scale(1)' : 'scale(1.05)',
-              pointerEvents: isConnected ? 'auto' : 'none',
-            }}
-          >
-            {/* Call controls bar */}
-            <div
-              className="flex-shrink-0"
-              style={{ borderBottom: '1px solid rgba(11,43,91,0.06)' }}
-            >
-              <Controls
-                isConnected={isConnected}
-                status={status}
-                micVolume={micVolume}
-                onConnect={connect}
-                onDisconnect={disconnect}
-                onInterrupt={interrupt}
-                compact
-              />
-            </div>
-
-            {/* Chat transcript */}
-            <div className="flex-1 overflow-hidden">
-              <ChatPanel messages={messages} status={status} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Desktop positioning ── */}
+      {/* Desktop and Mobile Responsiveness styles */}
       <style>{`
-        @media (min-width: 768px) {
-          div[role="dialog"][aria-label="Suhaas voice assistant"] {
-            bottom: 16px !important;
-            right: 16px !important;
-            height: 580px !important;
-            max-height: 80vh !important;
-            border-radius: 1rem !important;
-          }
-        }
         @media (max-width: 639px) {
           #suhaas-fab {
             left: 50%;
