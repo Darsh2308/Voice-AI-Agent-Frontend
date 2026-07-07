@@ -16,9 +16,9 @@ export const useWebSocket = () => {
   const wsRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const volumeIntervalRef = useRef<number | null>(null);
   // Gapless playback via the Web Audio API. Each incoming WAV chunk is decoded
   // to an AudioBuffer and scheduled on the shared AudioContext timeline right
   // after the previous one, so chunks butt up sample-accurately with no gap or
@@ -120,46 +120,62 @@ export const useWebSocket = () => {
       analyserRef.current.fftSize = 256;
       source.connect(analyserRef.current);
 
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      // AudioWorkletNode processes audio on a dedicated real-time thread,
+      // separate from the main JS thread — unlike the deprecated
+      // ScriptProcessorNode this replaces, mic capture keeps flowing smoothly
+      // even under main-thread load (React re-renders, the animated sphere),
+      // instead of risking delayed or jittery audio callbacks right when
+      // responsiveness matters most. The worklet (public/audio-processor.js)
+      // batches to 4096-sample chunks itself, so the WebSocket message size/
+      // cadence is unchanged from before — a drop-in replacement.
+      await audioContext.audioWorklet.addModule('/audio-processor.js');
+      const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+      workletNodeRef.current = workletNode;
+      source.connect(workletNode);
+      // Some browsers only pull data through a worklet node whose output is
+      // connected somewhere. The processor never writes to its output, so
+      // this stays silent — no mic monitoring/echo is introduced.
+      workletNode.connect(audioContext.destination);
 
-      processor.onaudioprocess = (event) => {
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          const input = event.inputBuffer.getChannelData(0);
-          const buffer = new ArrayBuffer(input.length * 2);
-          const view = new DataView(buffer);
-          for (let i = 0; i < input.length; i++) {
-            const s = Math.max(-1, Math.min(1, input[i]));
-            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-          }
-          wsRef.current.send(buffer);
+      workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+        const input = event.data;
+        const buffer = new ArrayBuffer(input.length * 2);
+        const view = new DataView(buffer);
+        for (let i = 0; i < input.length; i++) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
         }
+        wsRef.current.send(buffer);
       };
 
-      const updateVolume = () => {
+      // Volume meter for the visual sphere/waveform. Previously this ran on
+      // every requestAnimationFrame tick (~60/sec), calling setMicVolume — a
+      // React state update — that often purely to drive a slowly-varying
+      // visual indicator. That's 60 re-renders/sec competing for the same
+      // main thread we just moved audio capture OFF of. 20 Hz is still
+      // visually smooth for a volume bar and cuts re-render volume by ~2/3.
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      volumeIntervalRef.current = window.setInterval(() => {
         if (!analyserRef.current) return;
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(dataArray);
         const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
         setMicVolume(avg / 255);
-        animationFrameRef.current = requestAnimationFrame(updateVolume);
-      };
-      updateVolume();
+      }, 50);
     } catch (error) {
       console.error('Error starting microphone:', error);
     }
   }, []);
 
   const stopMicrophone = useCallback(() => {
-    processorRef.current?.disconnect();
-    processorRef.current = null;
+    workletNodeRef.current?.port.close();
+    workletNodeRef.current?.disconnect();
+    workletNodeRef.current = null;
     mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
     mediaStreamRef.current = null;
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+    if (volumeIntervalRef.current !== null) {
+      clearInterval(volumeIntervalRef.current);
+      volumeIntervalRef.current = null;
     }
     setMicVolume(0);
   }, []);
